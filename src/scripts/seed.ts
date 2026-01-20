@@ -47,14 +47,19 @@ const seed = async () => {
                 price: 4500,
                 stock: 20,
                 category: categories[0]._id,
-                images: [
-                    "https://res.cloudinary.com/demo/image/upload/snake.jpg"
+
+                imageUrl: [
+                    "https://res.cloudinary.com/demo/image/upload/snake1.jpg",
+                    "https://res.cloudinary.com/demo/image/upload/snake2.jpg",
                 ],
+
                 care: {
                     sunlight: "low",
-                    watering: "weekly"
+                    watering: "weekly",
+                    temperature: "18–30°C",
                 },
-                tags: ["pet-friendly"]
+
+                tags: ["pet-friendly"],
             },
             {
                 name: "Peace Lily",
@@ -62,15 +67,20 @@ const seed = async () => {
                 price: 6500,
                 stock: 15,
                 category: categories[3]._id,
-                images: [
-                    "https://res.cloudinary.com/demo/image/upload/lily.jpg"
-                ],
+
+                imageUrl: [
+                    "https://res.cloudinary.com/demo/image/upload/snake1.jpg",
+                    "https://res.cloudinary.com/demo/image/upload/snake2.jpg",
+                ], 
+
                 care: {
                     sunlight: "medium",
-                    watering: "twice-weekly"
-                }
-            }
-        ])
+                    watering: "twice-weekly",
+                    temperature: "20–28°C",
+                },
+            },
+        ]);
+
 
         console.log("plants seeded")
         process.exit(0);

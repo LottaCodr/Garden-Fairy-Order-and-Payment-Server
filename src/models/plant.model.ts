@@ -1,11 +1,11 @@
-import { Schema, model, Document } from "mongoose";
+import { Schema, model, Document, Types } from "mongoose";
 
 export interface IPlant extends Document {
     name: string;
     description: string;
     price: number;
-    category: string;
-    imageUrl: string;
+    category: Types.ObjectId;
+    imageUrl: string[];
     care: {
         sunlight: string;
         watering: string;
@@ -20,13 +20,25 @@ const plantSchema = new Schema<IPlant>(
         name: { type: String, required: true },
         description: { type: String, required: true },
         price: { type: Number, required: true },
-        category: { type: String, required: true },
-        imageUrl: { type: String, required: true },
+
+        category: {
+            type: Schema.Types.ObjectId,
+            ref: "Category",
+            required: true,
+        },
+
+        imageUrl: {
+            type: [String],
+            required: true,
+            validate: [(arr: string[]) => arr.length > 0, "At least one image is required"],
+        },
+
         care: {
             sunlight: { type: String, required: true },
             watering: { type: String, required: true },
             temperature: { type: String, required: true },
         },
+
         stock: { type: Number, default: 1 },
     },
     { timestamps: true }
