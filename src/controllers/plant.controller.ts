@@ -103,8 +103,8 @@ export const uploadPlantImages = async (req: Request, res: Response, next: NextF
         })
 
     } catch (error) {
-        next(error)
-
+        console.error(error);
+        res.status(500).json({ message: "Image upload Failed" })
     }
 }
 
