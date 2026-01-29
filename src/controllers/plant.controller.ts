@@ -99,7 +99,7 @@ export const uploadPlantImages = async (req: Request, res: Response, next: NextF
 
         res.status(200).json({
             message: "Image uploaded Successfully",
-            images: plant.images
+            images: plant.imageUrl
         })
 
     } catch (error) {
