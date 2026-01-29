@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { Plant } from "../models/plant.model";
+import { uploadToCloudinary } from "@src/utils/cloudinary-upload";
 
 export const createPlant = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -71,6 +72,41 @@ export const getPlant = async (req: Request, res: Response, next: NextFunction) 
         next(err);
     }
 };
+
+export const uploadPlantImages = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { plantId } = req.params;
+
+        if (!req.files || !(req.files instanceof Array)) {
+            return res.status(400).json({ message: "No Images provided" });
+        }
+
+        const uploadPromises = req.files.map((file) =>
+            uploadToCloudinary(file.buffer)
+        );
+
+        const imageUrls = await Promise.all(uploadPromises);
+
+        const plant = await Plant.findByIdAndUpdate(
+            plantId,
+            { $push: { images: { $each: imageUrls } } },
+            { new: true }
+        )
+
+        if (!plant) {
+            return res.status(404).json({ message: "Plant not found" });
+        }
+
+        res.status(200).json({
+            message: "Image uploaded Successfully",
+            images: plant.images
+        })
+
+    } catch (error) {
+        next(error)
+
+    }
+}
 
 export const updatePlant = async (req: Request, res: Response, next: NextFunction) => {
     try {

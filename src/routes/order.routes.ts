@@ -7,4 +7,4 @@ const router = Router()
 
 router.post("/orders", protect, idempotency, createOrder)
 
-export default router
+export default router;
