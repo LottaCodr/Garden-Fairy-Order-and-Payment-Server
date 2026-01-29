@@ -1,11 +1,16 @@
 import { Schema, model, Document, Types } from "mongoose";
 
+export interface IPlantImage {
+    url: string;
+    publicId: string;
+}
+
 export interface IPlant extends Document {
     name: string;
     description: string;
     price: number;
     category: Types.ObjectId;
-    imageUrl: string[];
+    imageUrl: IPlantImage[];
     care: {
         sunlight: string;
         watering: string;
@@ -28,10 +33,19 @@ const plantSchema = new Schema<IPlant>(
         },
 
         imageUrl: {
-            type: [String],
+            type: [
+                {
+                    url: { type: String, required: true },
+                    publicId: { type: String, required: true },
+                },
+            ],
             required: true,
-            validate: [(arr: string[]) => arr.length > 0, "At least one image is required"],
+            validate: [
+                (arr: unknown[]) => arr.length > 0,
+                "At least one image is required",
+            ],
         },
+
 
         care: {
             sunlight: { type: String, required: true },
