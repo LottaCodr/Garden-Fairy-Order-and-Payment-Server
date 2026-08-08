@@ -1,12 +1,12 @@
-import { Types } from "mongoose";
+export {};
 
 declare global {
     namespace Express {
         interface User {
             id: string;
             email: string;
-            role: "user" | "admin";
-            name: string
+            role: 'customer' | 'admin';
+            name: string;
         }
 
         interface Request {

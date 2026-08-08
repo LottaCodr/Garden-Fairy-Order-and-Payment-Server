@@ -1,4 +1,4 @@
-import { Schema, model, Document } from "mongoose";
+import { Schema, model, Document } from 'mongoose';
 
 export interface IIdempotencyKey extends Document {
     key: string;
@@ -8,14 +8,14 @@ export interface IIdempotencyKey extends Document {
 }
 
 const IdempotencyKeySchema = new Schema<IIdempotencyKey>({
-    key: { type: String, required: true, unique: true },
-    endpoint: { type: String, required: true },
-    response: { type: Schema.Types.Mixed }
+  key: { type: String, required: true, unique: true },
+  endpoint: { type: String, required: true },
+  response: { type: Schema.Types.Mixed },
 }, {
-    timestamps: true
+  timestamps: true,
 });
 
 export const IdempotencyKey = model<IIdempotencyKey>(
-    "IdempotencyKey",
-    IdempotencyKeySchema
-)
+  'IdempotencyKey',
+  IdempotencyKeySchema,
+);

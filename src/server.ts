@@ -13,12 +13,13 @@ import HTTP_STATUS_CODES, {
 } from '@src/common/constants/HTTP_STATUS_CODES';
 import { RouteError } from '@src/common/util/route-errors';
 import { NODE_ENVS } from '@src/common/constants';
-import plantRoutes from "./routes/plant.routes";
-import authRoutes from "./routes/auth.routes";
-import categoryRoutes from "./routes/category.routes"
-import paymentRoutes from "./routes/payment.routes"
-import cartRoutes from "./routes/cart.routes"
-
+import plantRoutes from './routes/plant.routes';
+import authRoutes from './routes/auth.routes';
+import categoryRoutes from './routes/category.routes';
+import paymentRoutes from './routes/payment.routes';
+import cartRoutes from './routes/cart.routes';
+import orderRoutes from './routes/order.routes';
+import adminOrderRoutes from './routes/admin.order.routes';
 
 
 /******************************************************************************
@@ -32,7 +33,7 @@ const app = express();
 
 // Basic middleware
 app.use(express.json());
-app.use(express.urlencoded({extended: true}));
+app.use(express.urlencoded({ extended: true }));
 
 // Show routes called in console during development
 if (ENV.NodeEnv === NODE_ENVS.Dev) {
@@ -47,21 +48,17 @@ if (ENV.NodeEnv === NODE_ENVS.Production) {
   }
 }
 
-// Add APIs, must be after middleware
+// **** API Routes **** //
+
 app.use(Paths.Base, BaseRouter);
 
-// Add error handler
-app.use((err: Error, _: Request, res: Response, next: NextFunction) => {
-  if (ENV.NodeEnv !== NODE_ENVS.Test.valueOf()) {
-    logger.err(err, true);
-  }
-  let status: HttpStatusCodes = HTTP_STATUS_CODES.BadRequest;
-  if (err instanceof RouteError) {
-    status = err.status;
-    res.status(status).json({ error: err.message });
-  }
-  return next(err);
-});
+app.use('/api/plants', plantRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/cart', cartRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/admin/orders', adminOrderRoutes);
 
 
 // **** FrontEnd Content **** //
@@ -84,13 +81,19 @@ app.get('/users', (_: Request, res: Response) => {
   return res.sendFile('users.html', { root: viewsDir });
 });
 
-app.use("/api/plants", plantRoutes);
-app.use("/api/auth", authRoutes);
-app.use("/api/categories", categoryRoutes);
-app.use("/api/payments", paymentRoutes);
-app.use("/api/cart", cartRoutes);
 
-
+// **** Error Handler (must be registered last) **** //
+app.use((err: Error, _: Request, res: Response, next: NextFunction) => {
+  if (ENV.NodeEnv !== NODE_ENVS.Test.valueOf()) {
+    logger.err(err, true);
+  }
+  let status: HttpStatusCodes = HTTP_STATUS_CODES.BadRequest;
+  if (err instanceof RouteError) {
+    status = err.status;
+    res.status(status).json({ error: err.message });
+  }
+  return next(err);
+});
 
 
 /******************************************************************************

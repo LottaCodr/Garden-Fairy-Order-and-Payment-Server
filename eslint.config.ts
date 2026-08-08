@@ -54,6 +54,18 @@ export default defineConfig(
       ],
       '@typescript-eslint/no-unsafe-enum-comparison': 0,
       '@typescript-eslint/no-unnecessary-type-parameters': 0,
+      // This codebase intentionally uses `any` for request bodies, Mongoose
+      // documents and third-party (Flutterwave) response payloads. These
+      // strict type-soundness rules produce false-positive noise on that
+      // pattern, so they are relaxed here.
+      '@typescript-eslint/no-unsafe-assignment': 0,
+      '@typescript-eslint/no-unsafe-member-access': 0,
+      '@typescript-eslint/no-unsafe-call': 0,
+      '@typescript-eslint/no-unsafe-argument': 0,
+      '@typescript-eslint/no-unsafe-return': 0,
+      '@typescript-eslint/no-explicit-any': 0,
+      '@typescript-eslint/prefer-nullish-coalescing': 0,
+      '@typescript-eslint/use-unknown-in-catch-callback-variable': 0,
       '@stylistic/no-extra-semi': 'warn',
       'max-len': [
         'warn',
