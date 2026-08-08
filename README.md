@@ -22,6 +22,14 @@ Built with Express 5 + Mongoose + TypeScript (scaffolded with
 > app.use(helmet());
 > ```
 
+## Frontend integration
+
+Building the storefront/admin panel against this API? See
+**[docs/FRONTEND_INTEGRATION.md](docs/FRONTEND_INTEGRATION.md)** — the full
+contract: cookies/session model, the fetch client to copy, every endpoint with
+request/response shapes, the checkout→Flutterwave→verify flow, the admin panel
+map, and the Zustand store migration guide.
+
 ## Quick start
 
 ```bash
