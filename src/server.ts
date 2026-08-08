@@ -1,6 +1,7 @@
 import morgan from 'morgan';
 import path from 'path';
 import helmet from 'helmet';
+import cors from 'cors';
 import express, { Request, Response, NextFunction } from 'express';
 import logger from 'jet-logger';
 
@@ -34,6 +35,21 @@ const app = express();
 // Basic middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// CORS - allow the configured frontend origins
+const allowedOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const corsOptions: cors.CorsOptions = {
+  origin: allowedOrigins.length > 0 ? allowedOrigins : true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'idempotency-key', 'verify-hash'],
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
 
 // Show routes called in console during development
 if (ENV.NodeEnv === NODE_ENVS.Dev) {

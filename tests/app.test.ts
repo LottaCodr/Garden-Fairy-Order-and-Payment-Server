@@ -31,4 +31,14 @@ describe('App wiring', () => {
     const res = await agent.get('/api/does-not-exist');
     expect(res.status).toBe(HTTP_STATUS_CODES.NotFound);
   });
+
+  it('responds to CORS preflight from an allowed origin', async () => {
+    const res = await agent.options('/api/plants')
+      .set('Origin', 'http://localhost:3000')
+      .set('Access-Control-Request-Method', 'POST')
+      .set('Access-Control-Request-Headers', 'Authorization, Content-Type');
+    expect(res.status).toBe(HTTP_STATUS_CODES.NoContent);
+    expect(res.headers['access-control-allow-origin']).toBe('http://localhost:3000');
+    expect(res.headers['access-control-allow-credentials']).toBe('true');
+  });
 });
