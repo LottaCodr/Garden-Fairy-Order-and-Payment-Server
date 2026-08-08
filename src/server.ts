@@ -2,6 +2,7 @@ import morgan from 'morgan';
 import path from 'path';
 import helmet from 'helmet';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import express, { Request, Response, NextFunction } from 'express';
 import logger from 'jet-logger';
 
@@ -21,6 +22,13 @@ import paymentRoutes from './routes/payment.routes';
 import cartRoutes from './routes/cart.routes';
 import orderRoutes from './routes/order.routes';
 import adminOrderRoutes from './routes/admin.order.routes';
+import adminRoutes from './routes/admin.routes';
+import wishlistRoutes from './routes/wishlist.routes';
+import reviewRoutes from './routes/review.routes';
+import checkoutRoutes from './routes/checkout.routes';
+import contactRoutes from './routes/contact.routes';
+import newsletterRoutes from './routes/newsletter.routes';
+import settingsRoutes from './routes/settings.routes';
 
 
 /******************************************************************************
@@ -35,6 +43,7 @@ const app = express();
 // Basic middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // CORS - allow the configured frontend origins
 const allowedOrigins = (process.env.CORS_ORIGIN || '')
@@ -69,12 +78,29 @@ if (ENV.NodeEnv === NODE_ENVS.Production) {
 app.use(Paths.Base, BaseRouter);
 
 app.use('/api/plants', plantRoutes);
+app.use('/api/products', plantRoutes); // spec alias — same catalogue
 app.use('/api/auth', authRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/wishlist', wishlistRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/checkout', checkoutRoutes);
+app.use('/api/contact', contactRoutes);
+app.use('/api/newsletter', newsletterRoutes);
+app.use('/api/settings', settingsRoutes);
 app.use('/api/admin/orders', adminOrderRoutes);
+app.use('/api/admin', adminRoutes);
+
+// Health check (liveness/readiness probe)
+app.get(['/api/health', '/health'], (_: Request, res: Response) => {
+  res.status(HTTP_STATUS_CODES.Ok).json({
+    status: 'ok',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+  });
+});
 
 
 // **** FrontEnd Content **** //
@@ -98,17 +124,51 @@ app.get('/users', (_: Request, res: Response) => {
 });
 
 
+// **** 404 handler for unmatched API routes **** //
+
+app.use(Paths.Base, (req: Request, res: Response) => {
+  res.status(HTTP_STATUS_CODES.NotFound).json({
+    error: `Route not found: ${req.method} ${req.originalUrl}`,
+  });
+});
+
+
 // **** Error Handler (must be registered last) **** //
-app.use((err: Error, _: Request, res: Response, next: NextFunction) => {
+
+app.use((err: Error & { code?: number }, _: Request, res: Response, next: NextFunction) => {
+  // If a response was already sent, delegate to the default Express handler.
+  if (res.headersSent) {
+    return next(err);
+  }
+
   if (ENV.NodeEnv !== NODE_ENVS.Test.valueOf()) {
     logger.err(err, true);
   }
-  let status: HttpStatusCodes = HTTP_STATUS_CODES.BadRequest;
+
+  let status: HttpStatusCodes = HTTP_STATUS_CODES.InternalServerError;
+  let message = 'Internal server error';
+
   if (err instanceof RouteError) {
     status = err.status;
-    res.status(status).json({ error: err.message });
+    message = err.message;
+  } else if (err.name === 'ValidationError') {
+    // Mongoose schema validation failed
+    status = HTTP_STATUS_CODES.BadRequest;
+    message = err.message;
+  } else if (err.name === 'CastError') {
+    // Invalid ObjectId (or other cast) in query/path params
+    status = HTTP_STATUS_CODES.BadRequest;
+    message = 'Invalid identifier in request';
+  } else if (err.code === 11000) {
+    // Mongo duplicate key
+    status = HTTP_STATUS_CODES.Conflict;
+    message = 'A record with the same unique value already exists';
+  } else if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
+    status = HTTP_STATUS_CODES.Unauthorized;
+    message = 'Token invalid or expired';
   }
-  return next(err);
+
+  return res.status(status).json({ error: message });
 });
 
 

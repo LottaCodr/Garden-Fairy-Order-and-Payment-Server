@@ -4,13 +4,16 @@ declare global {
     namespace Express {
         interface User {
             id: string;
+            name: string;
             email: string;
             role: 'customer' | 'admin';
-            name: string;
+            phone?: string;
         }
 
         interface Request {
             user?: User;
+            sessionId?: string;
+            cookies: Record<string, string | undefined>;
         }
     }
 }

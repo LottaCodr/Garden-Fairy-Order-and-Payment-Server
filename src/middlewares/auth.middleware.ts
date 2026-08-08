@@ -1,27 +1,60 @@
 import { User } from '@src/models/user.model';
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
 
-export const protect = async (req: Request, res: Response, next: NextFunction) => {
-  let token = '';
+import { verifyToken } from '@src/config/jwt';
+import { ACCESS_COOKIE } from '@src/services/authToken.service';
+import HTTP_STATUS_CODES from '@src/common/constants/HTTP_STATUS_CODES';
 
+/** Extract the access token: Bearer header first, session cookie second. */
+const extractToken = (req: Request): string => {
   const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) return authHeader.split(' ')[1];
+  return (req.cookies?.[ACCESS_COOKIE] as string) || '';
+};
 
-  if (authHeader?.startsWith('Bearer ')) token = authHeader.split(' ')[1];
-
-  if (!token) return res.status(401).json({ message: 'Not authenticated' });
+const authenticate = async (req: Request): Promise<boolean> => {
+  const token = extractToken(req);
+  if (!token) return false;
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
-
+    const decoded = verifyToken(token);
     const user = await User.findById(decoded.userId).select('-password');
+    if (!user) return false;
 
-    if (!user) return res.status(401).json({ message: 'User not found' });
-
-    (req as any).user = user;
-
-    next();
-  } catch (err) {
-    return res.status(401).json({ message: 'Token invalid or expired' });
+    // Normalize to a plain object so downstream handlers have a stable shape.
+    req.user = {
+      id: user._id.toString(),
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      phone: user.phone,
+    };
+    return true;
+  } catch {
+    return false;
   }
+};
+
+/**
+ * Require a valid access token (Bearer header or httpOnly cookie).
+ */
+export const protect = async (req: Request, res: Response, next: NextFunction) => {
+  if (!(await authenticate(req))) {
+    return res.status(HTTP_STATUS_CODES.Unauthorized)
+      .json({ message: 'Not authenticated' });
+  }
+  return next();
+};
+
+/**
+ * Optional authentication: attaches `req.user` when a valid token is
+ * present, otherwise continues as a guest (never rejects).
+ */
+export const optionalAuth = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  await authenticate(req);
+  return next();
 };
