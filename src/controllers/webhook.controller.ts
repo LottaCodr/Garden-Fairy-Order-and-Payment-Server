@@ -88,7 +88,7 @@ export const flutterwaveWebhook = async (req: Request, res: Response) => {
       Number(data.charged_amount ?? data.amount) >= payment.amount &&
       data.currency === FLW_CURRENCY
     ) {
-      await markPaymentSuccessful(tx_ref, data.id ?? id);
+      await markPaymentSuccessful(tx_ref, data.id ?? id, req.body.data);
     } else if (data?.status === 'failed') {
       await markPaymentFailed(tx_ref);
     }

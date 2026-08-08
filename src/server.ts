@@ -2,6 +2,7 @@ import morgan from 'morgan';
 import path from 'path';
 import helmet from 'helmet';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import express, { Request, Response, NextFunction } from 'express';
 import logger from 'jet-logger';
 
@@ -21,6 +22,13 @@ import paymentRoutes from './routes/payment.routes';
 import cartRoutes from './routes/cart.routes';
 import orderRoutes from './routes/order.routes';
 import adminOrderRoutes from './routes/admin.order.routes';
+import adminRoutes from './routes/admin.routes';
+import wishlistRoutes from './routes/wishlist.routes';
+import reviewRoutes from './routes/review.routes';
+import checkoutRoutes from './routes/checkout.routes';
+import contactRoutes from './routes/contact.routes';
+import newsletterRoutes from './routes/newsletter.routes';
+import settingsRoutes from './routes/settings.routes';
 
 
 /******************************************************************************
@@ -35,6 +43,7 @@ const app = express();
 // Basic middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // CORS - allow the configured frontend origins
 const allowedOrigins = (process.env.CORS_ORIGIN || '')
@@ -69,12 +78,20 @@ if (ENV.NodeEnv === NODE_ENVS.Production) {
 app.use(Paths.Base, BaseRouter);
 
 app.use('/api/plants', plantRoutes);
+app.use('/api/products', plantRoutes); // spec alias — same catalogue
 app.use('/api/auth', authRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/wishlist', wishlistRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/checkout', checkoutRoutes);
+app.use('/api/contact', contactRoutes);
+app.use('/api/newsletter', newsletterRoutes);
+app.use('/api/settings', settingsRoutes);
 app.use('/api/admin/orders', adminOrderRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check (liveness/readiness probe)
 app.get(['/api/health', '/health'], (_: Request, res: Response) => {

@@ -2,27 +2,24 @@ import { Router } from 'express';
 import {
   getCart,
   addCartItem,
+  setCartItem,
   updateCartItem,
   removeCartItem,
   clearCart,
 } from '../controllers/cart.controller';
-import { protect } from '@src/middlewares/auth.middleware';
+import { optionalAuth } from '@src/middlewares/auth.middleware';
+import { ensureSession } from '@src/middlewares/session.middleware';
 
 const router = Router();
 
-// Get current user's cart
-router.get('/', protect, getCart);
+// All cart routes work for both authenticated users and guest sessions.
+router.use(optionalAuth, ensureSession);
 
-// Remove every item from the cart
-router.delete('/', protect, clearCart);
-
-// Add item to cart
-router.post('/items', protect, addCartItem);
-
-// Update a specific cart item (by item's _id)
-router.put('/items/:id', protect, updateCartItem);
-
-// Remove a cart item
-router.delete('/items/:id', protect, removeCartItem);
+router.get('/', getCart);
+router.delete('/', clearCart);
+router.post('/items', addCartItem);        // add/increment
+router.put('/items', setCartItem);         // set absolute quantity
+router.put('/items/:id', updateCartItem);  // by item _id or product id
+router.delete('/items/:id', removeCartItem);
 
 export default router;

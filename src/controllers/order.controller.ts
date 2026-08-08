@@ -1,21 +1,17 @@
 import { Request, Response, NextFunction } from 'express';
-import { Types } from 'mongoose';
-import { Order } from '../models/order.model';
-import { Plant } from '../models/plant.model';
-import { Cart } from '../models/cart.model';
+import { Order, IOrder } from '../models/order.model';
 import { Payment } from '../models/payment.model';
-import flwClient from '@src/services/flutterwave.service';
 import {
-  reserveStock,
-  releaseStock,
+  placeOrder,
+  previewSubtotal,
   restockOrder,
+  OutOfStockError,
 } from '@src/services/order.service';
+import { quoteDelivery } from '@src/services/delivery.service';
 import HTTP_STATUS_CODES from '@src/common/constants/HTTP_STATUS_CODES';
 
-const FLW_REDIRECT = process.env.FLUTTERWAVE_REDIRECT_URL;
 const DELIVERY_METHODS = ['standard', 'express'] as const;
 
-// Raw request-body item (untrusted input — fields validated before use).
 interface IRawOrderItem {
   productId?: unknown;
   qty?: unknown;
@@ -66,6 +62,10 @@ const validateCreatePayload = (body: Record<string, unknown>): string | null => 
 
 // Create order: validates input, reserves stock atomically, records a
 // Payment and initializes a Flutterwave hosted payment link.
+//
+// Delivery fee: an explicit deliveryMethod keeps the legacy express/
+// standard override; otherwise the DeliveryRate table + free-shipping
+// threshold from StoreSetting applies (spec business rules).
 export const createOrder = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const user = req.user!;
@@ -76,132 +76,59 @@ export const createOrder = async (req: Request, res: Response, next: NextFunctio
       return res.status(HTTP_STATUS_CODES.BadRequest).json({ message: validationError });
     }
 
-    // Delivery fee estimate — simplistic rule (replace with a partner API).
-    const deliveryFee = deliveryMethod === 'express' ? 2500 : 1200;
-
-    let subtotal = 0;
-    const itemsDetailed: {
-      product: Types.ObjectId; name: string; price: number; qty: number;
-      image: string; size?: string;
-    }[] = [];
-    const reserved: { productId: string; qty: number }[] = [];
-
-    // Undo all reservations made so far (used on every failure path).
-    const releaseReserved = async () => {
-      await Promise.all(
-        reserved.map((r) => releaseStock(r.productId, r.qty)),
+    let deliveryFee: number;
+    let etaDays: number | null = null;
+    if (deliveryMethod !== undefined) {
+      // Legacy flat override: express ₦2,500 / standard ₦1,200.
+      deliveryFee = deliveryMethod === 'express' ? 2500 : 1200;
+    } else {
+      // Spec rule: DeliveryRate table + free-shipping threshold.
+      const subtotal = await previewSubtotal(
+        (items as IRawOrderItem[]).map((it) => ({
+          productId: String(it.productId),
+          qty: Number(it.qty),
+        })),
       );
-      reserved.length = 0;
-    };
-
-    // 1. Reserve stock for every line item — atomically, so concurrent
-    //    checkouts can never oversell.
-    for (const it of items as IRawOrderItem[]) {
-      const productId = String(it.productId);
-      const qty = Number(it.qty);
-      const size = typeof it.size === 'string' ? it.size : undefined;
-
-      let product;
-      try {
-        product = await reserveStock(productId, qty);
-      } catch (err) {
-        await releaseReserved();
-        throw err;
-      }
-
-      if (!product) {
-        // Another checkout won the race, or the item does not exist:
-        // release what we already took before answering.
-        await releaseReserved();
-        const plant = await Plant.findById(productId).select('name stock');
-        return res.status(HTTP_STATUS_CODES.Conflict).json({
-          message: plant
-            ? `Not enough stock for "${plant.name}" (${plant.stock} left)`
-            : `Product not found: ${productId}`,
-        });
-      }
-      reserved.push({ productId, qty });
-
-      subtotal += product.price * qty;
-      itemsDetailed.push({
-        product: product._id,
-        name: product.name,
-        price: product.price,
-        qty,
-        image: product.imageUrl?.[0]?.url || '',
-        size,
-      });
+      const quote = await quoteDelivery(
+        (shippingAddress.state as string).trim(),
+        typeof shippingAddress.city === 'string'
+          ? shippingAddress.city
+          : undefined,
+        subtotal,
+      );
+      deliveryFee = quote.deliveryFee;
+      etaDays = quote.etaDays;
     }
 
-    const total = subtotal + deliveryFee;
-
-    // 2. Create the order + payment records and initialize the hosted
-    //    payment. Any failure here rolls everything back so no orphan
-    //    orders or stock reservations are left behind.
-    let order;
-    let txRef = '';
-    let paymentLink: string | undefined;
-    try {
-      order = await Order.create({
-        user: user.id,
-        items: itemsDetailed,
-        shippingAddress,
-        payment: { provider: 'flutterwave', status: 'unpaid', amount: total },
-        delivery: { fee: deliveryFee, status: 'pending' },
-        status: 'pending_payment',
-        total,
-      });
-
-      txRef = `GF-${order._id.toString()}-${Date.now()}`;
-
-      // A Payment document must exist for the tx_ref so the webhook (and
-      // the verify endpoint) can link the payment back to this order.
-      const payment = await Payment.create({
-        user: user.id,
-        order: order._id,
-        amount: total,
-        flutterwaveRef: txRef,
-        idempotencyKey: `order-${order._id.toString()}`,
-      });
-
-      // Initialize the Flutterwave hosted payment page.
-      const payload = {
-        tx_ref: txRef,
-        amount: total,
-        currency: 'NGN',
-        redirect_url: FLW_REDIRECT,
-        customer: {
-          email: (shippingAddress?.email as string) || user.email,
-          phone_number: shippingAddress?.phone,
-          name: shippingAddress?.name || user.name,
-        },
-        meta: { orderId: order._id.toString(), paymentId: payment._id.toString() },
-        customizations: {
-          title: 'Garden Fairy',
-          description: `Payment for order ${order._id.toString()}`,
-        },
-      };
-
-      const response = await flwClient.post('/payments', payload);
-      paymentLink = response.data?.data?.link;
-    } catch (err) {
-      if (order) {
-        await Payment.findOneAndDelete({ order: order._id, status: 'pending' });
-        await Order.findByIdAndDelete(order._id);
-      }
-      await releaseReserved();
-      throw err;
-    }
-
-    // The checkout consumed the cart — clear it.
-    await Cart.findOneAndUpdate({ user: user.id }, { $set: { items: [] } });
+    const placed = await placeOrder({
+      userId: user.id,
+      customer: {
+        name: (shippingAddress.name as string) || user.name,
+        email: (shippingAddress.email as string) || user.email,
+        phone: shippingAddress.phone,
+      },
+      items: (items as IRawOrderItem[]).map((it) => ({
+        productId: String(it.productId),
+        qty: Number(it.qty),
+        size: typeof it.size === 'string' ? it.size : undefined,
+      })),
+      shippingAddress,
+      deliveryFee,
+      etaDays,
+    });
 
     res.status(HTTP_STATUS_CODES.Created).json({
-      order,
-      txRef,
-      paymentLink,
+      order: placed.order,
+      txRef: placed.txRef,
+      paymentLink: placed.paymentLink,
     });
   } catch (err) {
+    if (err instanceof OutOfStockError) {
+      const status = err.available === null
+        ? HTTP_STATUS_CODES.NotFound
+        : HTTP_STATUS_CODES.Conflict;
+      return res.status(status).json({ message: err.message });
+    }
     next(err);
   }
 };
@@ -232,7 +159,22 @@ export const getMyOrders = async (req: Request, res: Response, next: NextFunctio
   } catch (err) { next(err); }
 };
 
-// Get a single order. Only the owner (or an admin) may view it.
+/** Derive a status timeline from the order's timestamps. */
+const buildTimeline = (order: IOrder) => {
+  const timeline: { status: string; at: Date | null }[] = [
+    { status: 'pending_payment', at: order.get('createdAt') ?? null },
+  ];
+  if (order.paidAt) timeline.push({ status: 'paid', at: order.paidAt });
+  const deliveryStatus = order.delivery?.status;
+  if (deliveryStatus === 'in_transit' || deliveryStatus === 'delivered') {
+    timeline.push({ status: 'shipped', at: null });
+  }
+  if (order.deliveredAt) timeline.push({ status: 'delivered', at: order.deliveredAt });
+  if (order.cancelledAt) timeline.push({ status: 'cancelled', at: order.cancelledAt });
+  return timeline;
+};
+
+// Get a single order (with status timeline). Only the owner or an admin.
 export const getOrderById = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const user = req.user!;
@@ -247,7 +189,7 @@ export const getOrderById = async (req: Request, res: Response, next: NextFuncti
         .json({ message: 'You do not have access to this order' });
     }
 
-    res.json({ data: order });
+    res.json({ data: order, timeline: buildTimeline(order) });
   } catch (err) { next(err); }
 };
 

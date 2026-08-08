@@ -122,7 +122,7 @@ export const verifyPayment = async (
 ) => {
   try {
     const { txRef } = req.params;
-    const user = req.user!;
+    const user = req.user;
 
     const payment = await Payment.findOne({ flutterwaveRef: txRef });
     if (!payment) {
@@ -130,10 +130,14 @@ export const verifyPayment = async (
         .json({ message: 'Payment not found' });
     }
 
-    const isOwner = payment.user.toString() === user.id;
-    if (!isOwner && user.role !== 'admin') {
-      return res.status(HTTP_STATUS_CODES.Forbidden)
-        .json({ message: 'You do not have access to this payment' });
+    // Registered users' payments require ownership; guest-checkout payments
+    // (no user) are verifiable by whoever holds the tx_ref from the redirect.
+    if (payment.user) {
+      const isOwner = payment.user.toString() === user?.id;
+      if (!isOwner && user?.role !== 'admin') {
+        return res.status(HTTP_STATUS_CODES.Unauthorized)
+          .json({ message: 'Sign in to verify this payment' });
+      }
     }
 
     // Nothing to do if it already resolved.

@@ -5,12 +5,12 @@ import {
   initializePayment,
   verifyPayment,
 } from '@src/controllers/payment.controller';
-import { protect } from '@src/middlewares/auth.middleware';
+import { protect, optionalAuth } from '@src/middlewares/auth.middleware';
 
 const router = Router();
 
 router.post('/initialize', protect, initializePayment);
-router.get('/verify/:txRef', protect, verifyPayment);
+router.get('/verify/:txRef', optionalAuth, verifyPayment);
 router.post('/webhook/flutterwave', idempotency, flutterwaveWebhook);
 
 export default router;

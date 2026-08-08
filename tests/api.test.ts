@@ -11,6 +11,7 @@ import { signToken } from '@src/config/jwt';
 // without a MongoDB connection. Endpoints are exercised up to their
 // input-validation gates.
 import { userMocks } from './support/mocks';
+import { Payment } from '@src/models/payment.model';
 
 const FAKE_USER = {
   _id: '64b7f0f5a4f5c1a2b3c4d5e6',
@@ -104,7 +105,16 @@ describe('Garden Fairy API', () => {
       expect(res.status).toBe(HTTP_STATUS_CODES.Unauthorized);
     });
 
-    it('rejects GET /api/payments/verify/:txRef without a token', async () => {
+    it('404s verifying an unknown tx_ref (guest-capable endpoint)', async () => {
+      vi.spyOn(Payment, 'findOne').mockResolvedValue(null as never);
+      const res = await agent.get('/api/payments/verify/GF-does-not-exist');
+      expect(res.status).toBe(HTTP_STATUS_CODES.NotFound);
+    });
+
+    it('requires sign-in to verify a registered user\'s payment', async () => {
+      vi.spyOn(Payment, 'findOne').mockResolvedValue({
+        user: { toString: () => 'some-user-id' },
+      } as never);
       const res = await agent.get('/api/payments/verify/GF-123');
       expect(res.status).toBe(HTTP_STATUS_CODES.Unauthorized);
     });

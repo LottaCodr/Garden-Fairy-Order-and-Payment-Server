@@ -12,6 +12,8 @@ declare global {
 
         interface Request {
             user?: User;
+            sessionId?: string;
+            cookies: Record<string, string | undefined>;
         }
     }
 }

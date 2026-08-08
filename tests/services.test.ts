@@ -1,9 +1,10 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Types } from 'mongoose';
 
 import { Plant } from '@src/models/plant.model';
 import { Order } from '@src/models/order.model';
 import { Payment } from '@src/models/payment.model';
+import { InventoryLog } from '@src/models/inventoryLog.model';
 import {
   reserveStock,
   releaseStock,
@@ -17,6 +18,12 @@ import {
 
 // vi.spyOn replaces properties on the shared model objects themselves, so it
 // works for service modules that were imported during setup.
+beforeEach(() => {
+  // Inventory logging is a side effect of stock movements — stub it so the
+  // tests never buffer real Mongo writes.
+  vi.spyOn(InventoryLog, 'create').mockResolvedValue({} as never);
+});
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -26,7 +33,7 @@ describe('order service — stock management', () => {
     const spy = vi.spyOn(Plant, 'findOneAndUpdate').mockResolvedValue({} as never);
     await reserveStock('abc', 3);
     expect(spy).toHaveBeenCalledWith(
-      { _id: 'abc', stock: { $gte: 3 } },
+      { _id: 'abc', status: 'active', stock: { $gte: 3 } },
       { $inc: { stock: -3, sold: 3 } },
       { new: true },
     );
@@ -45,12 +52,13 @@ describe('order service — stock management', () => {
   it('restockOrder releases every item on the order', async () => {
     const spy = vi.spyOn(Plant, 'findOneAndUpdate').mockResolvedValue({} as never);
     await restockOrder({
+      _id: new Types.ObjectId(),
       items: [
         { product: new Types.ObjectId(), name: 'A', price: 100, qty: 1 },
         { product: new Types.ObjectId(), name: 'B', price: 200, qty: 4 },
         { product: new Types.ObjectId(), name: 'C', price: 300, qty: 2 },
       ],
-    });
+    } as never);
     expect(spy).toHaveBeenCalledTimes(3);
   });
 
@@ -87,14 +95,22 @@ describe('payment service', () => {
 
     expect(paymentSpy).toHaveBeenCalledWith(
       { flutterwaveRef: 'GF-1-123' },
-      { status: 'successful', transactionId: '98765' },
+      expect.objectContaining({
+        status: 'successful',
+        transactionId: '98765',
+        paidAt: expect.any(Date),
+      }),
       { new: true },
     );
-    expect(orderSpy).toHaveBeenCalledWith(orderId, expect.objectContaining({
-      'payment.status': 'paid',
-      'payment.reference': '98765',
-      status: 'paid',
-    }));
+    expect(orderSpy).toHaveBeenCalledWith(
+      orderId,
+      expect.objectContaining({
+        'payment.status': 'paid',
+        'payment.reference': '98765',
+        status: 'paid',
+      }),
+      { new: true },
+    );
     expect(result).toEqual({ order: orderId });
   });
 

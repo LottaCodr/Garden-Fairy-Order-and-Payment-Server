@@ -41,6 +41,12 @@ export interface IOrderItem {
 
 export interface IOrder extends Document {
     user?: Types.ObjectId;
+    // Denormalized customer fields — set for every order so guest checkouts
+    // and account deletions still leave a complete record.
+    customerName?: string;
+    customerEmail?: string;
+    phone?: string;
+    notes?: string;
     items: IOrderItem[];
     shippingAddress: {
         state: string,
@@ -71,6 +77,10 @@ export interface IOrder extends Document {
 
 const OrderSchema = new Schema<IOrder>({
   user: { type: Schema.Types.ObjectId, ref: 'User' },
+  customerName: { type: String },
+  customerEmail: { type: String },
+  phone: { type: String },
+  notes: { type: String },
   items: [{
     product: { type: Schema.Types.ObjectId, ref: 'Plant', required: true },
     name: String,

@@ -7,15 +7,22 @@ import {
   deletePlant,
   uploadPlantImages,
 } from '../controllers/plant.controller';
-import { protect } from '../middlewares/auth.middleware';
+import { listReviews, upsertReview } from '../controllers/review.controller';
+import { protect, optionalAuth } from '../middlewares/auth.middleware';
 import { authorize } from '../middlewares/role.middleware';
 import { upload } from '@src/middlewares/upload';
 
+// Mounted at both /api/plants and /api/products.
 const router = Router();
 
-// public catalogue endpoints
-router.get('/', getPlants);
-router.get('/:id', getPlant);
+// public catalogue endpoints (optionalAuth marks admins so they can see
+// archived products too)
+router.get('/', optionalAuth, getPlants);
+router.get('/:id', optionalAuth, getPlant);
+
+// reviews
+router.get('/:id/reviews', listReviews);
+router.post('/:id/reviews', protect, upsertReview);
 
 // admin protected
 router.post('/', protect, authorize('admin'), upload.array('images', 6), createPlant);
