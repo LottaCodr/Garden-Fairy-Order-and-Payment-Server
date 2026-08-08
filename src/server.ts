@@ -76,6 +76,15 @@ app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/admin/orders', adminOrderRoutes);
 
+// Health check (liveness/readiness probe)
+app.get(['/api/health', '/health'], (_: Request, res: Response) => {
+  res.status(HTTP_STATUS_CODES.Ok).json({
+    status: 'ok',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+  });
+});
+
 
 // **** FrontEnd Content **** //
 
@@ -98,17 +107,51 @@ app.get('/users', (_: Request, res: Response) => {
 });
 
 
+// **** 404 handler for unmatched API routes **** //
+
+app.use(Paths.Base, (req: Request, res: Response) => {
+  res.status(HTTP_STATUS_CODES.NotFound).json({
+    error: `Route not found: ${req.method} ${req.originalUrl}`,
+  });
+});
+
+
 // **** Error Handler (must be registered last) **** //
-app.use((err: Error, _: Request, res: Response, next: NextFunction) => {
+
+app.use((err: Error & { code?: number }, _: Request, res: Response, next: NextFunction) => {
+  // If a response was already sent, delegate to the default Express handler.
+  if (res.headersSent) {
+    return next(err);
+  }
+
   if (ENV.NodeEnv !== NODE_ENVS.Test.valueOf()) {
     logger.err(err, true);
   }
-  let status: HttpStatusCodes = HTTP_STATUS_CODES.BadRequest;
+
+  let status: HttpStatusCodes = HTTP_STATUS_CODES.InternalServerError;
+  let message = 'Internal server error';
+
   if (err instanceof RouteError) {
     status = err.status;
-    res.status(status).json({ error: err.message });
+    message = err.message;
+  } else if (err.name === 'ValidationError') {
+    // Mongoose schema validation failed
+    status = HTTP_STATUS_CODES.BadRequest;
+    message = err.message;
+  } else if (err.name === 'CastError') {
+    // Invalid ObjectId (or other cast) in query/path params
+    status = HTTP_STATUS_CODES.BadRequest;
+    message = 'Invalid identifier in request';
+  } else if (err.code === 11000) {
+    // Mongo duplicate key
+    status = HTTP_STATUS_CODES.Conflict;
+    message = 'A record with the same unique value already exists';
+  } else if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
+    status = HTTP_STATUS_CODES.Unauthorized;
+    message = 'Token invalid or expired';
   }
-  return next(err);
+
+  return res.status(status).json({ error: message });
 });
 
 

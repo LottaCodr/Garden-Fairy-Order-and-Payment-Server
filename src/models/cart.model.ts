@@ -1,8 +1,15 @@
 import { Schema, model, Document, Types } from 'mongoose';
 
+export interface ICartItem {
+    _id?: Types.ObjectId;
+    product: Types.ObjectId;
+    qty: number;
+    size?: string;
+}
+
 export interface ICart extends Document {
     user: Types.ObjectId;
-    items: { product: Types.ObjectId, qty: number, size?: string }[];
+    items: ICartItem[];
 }
 
 const CartSchema = new Schema<ICart>({

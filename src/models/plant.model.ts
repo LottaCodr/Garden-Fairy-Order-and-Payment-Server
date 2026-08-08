@@ -62,4 +62,12 @@ const plantSchema = new Schema<IPlant>(
   { timestamps: true },
 );
 
+// Indexes to support catalogue search/filtering
+// (name text search, category/tags filters, price range, care.sunlight).
+plantSchema.index({ name: 'text', description: 'text', tags: 'text' });
+plantSchema.index({ category: 1, price: 1 });
+plantSchema.index({ tags: 1 });
+plantSchema.index({ 'care.sunlight': 1 });
+plantSchema.index({ sold: -1 });
+
 export const Plant = model<IPlant>('Plant', plantSchema);

@@ -1,5 +1,34 @@
 import { Schema, model, Document, Types } from 'mongoose';
 
+export const ORDER_STATUSES = [
+  'pending_payment',
+  'paid',
+  'processing',
+  'shipped',
+  'delivered',
+  'cancelled',
+] as const;
+
+export type OrderStatus = (typeof ORDER_STATUSES)[number];
+
+export const PAYMENT_STATUSES = [
+  'unpaid',
+  'paid',
+  'failed',
+  'refunded',
+] as const;
+
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+
+export const DELIVERY_STATUSES = [
+  'pending',
+  'in_transit',
+  'delivered',
+  'returned',
+] as const;
+
+export type DeliveryStatus = (typeof DELIVERY_STATUSES)[number];
+
 export interface IOrderItem {
     product: Types.ObjectId;
     name: string;
@@ -35,6 +64,9 @@ export interface IOrder extends Document {
     };
     status: string;
     total: number;
+    paidAt?: Date;
+    deliveredAt?: Date;
+    cancelledAt?: Date;
 }
 
 const OrderSchema = new Schema<IOrder>({
@@ -52,13 +84,26 @@ const OrderSchema = new Schema<IOrder>({
     state: String, city: String, street: String, phone: String, name: String,
   },
   payment: {
-    provider: String, status: { type: String, default: 'unpaid' }, reference: String, amount: Number,
+    provider: String,
+    status: { type: String, enum: PAYMENT_STATUSES, default: 'unpaid' },
+    reference: String,
+    amount: Number,
   },
   delivery: {
-    provider: String, trackingId: String, status: String, etaDays: Number, fee: Number,
+    provider: String,
+    trackingId: String,
+    status: { type: String, enum: DELIVERY_STATUSES },
+    etaDays: Number,
+    fee: Number,
   },
-  status: { type: String, default: 'pending_payment' },
+  status: { type: String, enum: ORDER_STATUSES, default: 'pending_payment' },
   total: Number,
+  paidAt: Date,
+  deliveredAt: Date,
+  cancelledAt: Date,
 }, { timestamps: true });
+
+OrderSchema.index({ user: 1, createdAt: -1 });
+OrderSchema.index({ status: 1, createdAt: -1 });
 
 export const Order = model<IOrder>('Order', OrderSchema);

@@ -1,4 +1,9 @@
-import { createOrder } from '@src/controllers/order.controller';
+import {
+  createOrder,
+  getMyOrders,
+  getOrderById,
+  cancelOrder,
+} from '@src/controllers/order.controller';
 import { protect } from '@src/middlewares/auth.middleware';
 import { idempotency } from '@src/middlewares/idempotency.middleware';
 import { Router } from 'express';
@@ -6,5 +11,8 @@ import { Router } from 'express';
 const router = Router();
 
 router.post('/', protect, idempotency, createOrder);
+router.get('/my', protect, getMyOrders);
+router.get('/:id', protect, getOrderById);
+router.post('/:id/cancel', protect, cancelOrder);
 
 export default router;

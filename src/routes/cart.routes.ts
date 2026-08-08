@@ -4,6 +4,7 @@ import {
   addCartItem,
   updateCartItem,
   removeCartItem,
+  clearCart,
 } from '../controllers/cart.controller';
 import { protect } from '@src/middlewares/auth.middleware';
 
@@ -11,6 +12,9 @@ const router = Router();
 
 // Get current user's cart
 router.get('/', protect, getCart);
+
+// Remove every item from the cart
+router.delete('/', protect, clearCart);
 
 // Add item to cart
 router.post('/items', protect, addCartItem);
