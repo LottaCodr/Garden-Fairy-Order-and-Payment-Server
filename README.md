@@ -72,6 +72,51 @@ the database is unreachable.
 | `RESEND_API_KEY` / `EMAIL_FROM` | | Transactional email via Resend (without a key, mail is logged — dev default) |
 | `PORT` / `HOST` | | Server bind settings |
 
+## Deploy to Render
+
+The app is a plain Node/Express server. **How env loading works:** at boot
+`config.ts` (preloaded as `config.js`) loads `config/.env.<NODE_ENV>`.
+`dotenv` never overrides variables that already exist, so **anything you set
+in Render → your service → Environment wins** over the committed
+`config/.env.*` files. Real secrets belong on the platform, never in Git.
+
+**Option A — Blueprint (recommended).** This repo ships
+[`render.yaml`](render.yaml). In Render: **New + → Blueprint**, pick this
+repo, fill in the prompted values (`sync: false`), deploy. `JWT_SECRET` and
+`FLW_WEBHOOK_SECRET` are generated for you.
+
+**Option B — Manual web service.**
+
+| Setting | Value |
+| ------- | ----- |
+| Runtime | Node |
+| Build command | `npm install && npm run build` |
+| Start command | `npm run start` |
+| Health check path | `/api/health` |
+
+Then set at minimum in Render → Environment:
+
+| Variable | Notes |
+| -------- | ----- |
+| `MONGO_URI` | e.g. `mongodb+srv://user:pass@cluster.xxxxx.mongodb.net/garden-fairy` |
+| `JWT_SECRET` | long random string (don't reuse the dev value) |
+| `CORS_ORIGIN` | your deployed frontend URL(s), comma-separated |
+| Flutterwave / Cloudinary vars | needed for payments / image uploads |
+
+### MongoDB Atlas networking
+
+If the cluster runs on MongoDB Atlas, **Network Access** must allow your
+host's outbound IPs. For Render (shared/static outbound IPs) that usually
+means `0.0.0.0/0` — *Allow access from anywhere*.
+
+### Troubleshooting boot failures
+
+- `MongoParseError: Invalid scheme` — `MONGO_URI` is unset or still the
+  `your_production_mongo_uri` placeholder. Set it in Render → Environment
+  and redeploy (the server also logs a hint for this case now).
+- `querySrv ENOTFOUND` / `ETIMEDOUT` — the database host is unreachable,
+  almost always the Atlas Network Access allowlist (see above).
+
 ## Auth model
 
 - Sign-up/sign-in issue a short-lived **access token** (JWT) and a long-lived

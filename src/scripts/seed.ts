@@ -7,7 +7,10 @@ import { DeliveryRate } from '@src/models/deliveryRate.model';
 import { StoreSetting } from '@src/models/storeSetting.model';
 import { DEFAULT_SETTINGS } from '@src/services/settings.service';
 
-dotenv.config();
+dotenv.config({
+  // eslint-disable-next-line n/no-process-env
+  path: `config/.env.${process.env.NODE_ENV ?? 'development'}`,
+});
 
 // eslint-disable-next-line n/no-process-env
 const MONGO_URI = process.env.MONGO_URI!;
